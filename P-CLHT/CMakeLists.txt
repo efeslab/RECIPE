@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 2.8)
 project(P-CLHT)
 
+if (PMDK_INCLUDE_DIR)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -I${PMDK_INCLUDE_DIR}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${PMDK_INCLUDE_DIR}")
+endif()
+
+if (PMDK_LIBS)
+    link_directories(${PMDK_LIBS})
+endif()
+
+set(CMAKE_C_COMPILER /usr/local/bin/wllvm)
+set(CMAKE_CXX_COMPILER /usr/local/bin/wllvm++)
+
 if( NOT CMAKE_BUILD_TYPE )
     message(STATUS "No build type selected, default to Release")
     set( CMAKE_BUILD_TYPE Release)
@@ -47,14 +59,14 @@ find_package (Threads)
 
 set(P_CLHT_TEST example.cpp src/clht_lb_res.c src/clht_gc.c
     external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
-add_executable(example ${P_CLHT_TEST})
+add_executable(p-clht_example ${P_CLHT_TEST})
 
-target_link_libraries(example ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
+target_link_libraries(p-clht_example ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
     boost_thread pthread)
 
 set(P_CLHT_TEST test.cpp src/clht_lb_res.c src/clht_gc.c
     external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
-add_executable(test ${P_CLHT_TEST})
+add_executable(p-clht_test ${P_CLHT_TEST})
 
-target_link_libraries(test ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
+target_link_libraries(p-clht_test ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
     boost_thread pthread)
