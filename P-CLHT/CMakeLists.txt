@@ -7,7 +7,8 @@ if (PMDK_INCLUDE_DIR)
 endif()
 
 if (PMDK_LIBS)
-    link_directories(${PMDK_LIBS})
+    set(LOCAL_SOURCE ${LOCAL_SOURCE})
+    link_directories(${PMDK_LIBS}/pmdk_debug/)
 endif()
 
 set(CMAKE_C_COMPILER /usr/local/bin/wllvm)
@@ -57,16 +58,17 @@ find_library(JemallocLib jemalloc)
 find_library(TbbLib tbb)
 find_package (Threads)
 
-set(P_CLHT_TEST example.cpp src/clht_lb_res.c src/clht_gc.c
-    external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
+set(LOCAL_SOURCE src/clht_lb_res.c src/clht_gc.c external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
+set(LOCAL_LIBS ${TbbLib} ${JemallocLib} boost_system boost_thread pthread pmemobj pmem)
+if (PMDK_LIBS)
+    set(LOCAL_SOURCE ${LOCAL_SOURCE})
+endif()
+
+set(P_CLHT_TEST example.cpp ${LOCAL_SOURCE})
 add_executable(p-clht_example ${P_CLHT_TEST})
 
-target_link_libraries(p-clht_example ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
-    boost_thread pthread)
+target_link_libraries(p-clht_example ${LOCAL_LIBS})
 
-set(P_CLHT_TEST test.cpp src/clht_lb_res.c src/clht_gc.c
-    external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
 add_executable(p-clht_test ${P_CLHT_TEST})
 
-target_link_libraries(p-clht_test ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
-    boost_thread pthread)
+target_link_libraries(p-clht_test ${LOCAL_LIBS})
