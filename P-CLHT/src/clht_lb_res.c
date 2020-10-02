@@ -136,7 +136,7 @@ static inline unsigned long read_tsc(void)
 }
 
 static inline void mfence() {
-    asm volatile("mfence":::"memory");
+    asm volatile("sfence":::"memory");
 }
 
 static inline void clflush(char *data, int len, bool fence)
@@ -145,7 +145,7 @@ static inline void clflush(char *data, int len, bool fence)
     if (fence)
         mfence();
     for(; ptr<data+len; ptr+=CACHE_LINE_SIZE){
-        unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
+        // unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
 #ifdef CLFLUSH
         asm volatile("clflush %0" : "+m" (*(volatile char *)ptr));
 #elif CLFLUSH_OPT
@@ -153,7 +153,7 @@ static inline void clflush(char *data, int len, bool fence)
 #elif CLWB
         asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(ptr)));
 #endif
-	    while(read_tsc() < etsc) cpu_pause();
+	    // while(read_tsc() < etsc) cpu_pause();
     }
     if (fence)
         mfence();
@@ -165,7 +165,7 @@ static inline void clflush_next_check(char *data, int len, bool fence)
     if (fence)
         mfence();
     for(; ptr<data+len; ptr+=CACHE_LINE_SIZE){
-        unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
+        // unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
 #ifdef CLFLUSH
         asm volatile("clflush %0" : "+m" (*(volatile char *)ptr));
 #elif CLFLUSH_OPT
@@ -175,7 +175,7 @@ static inline void clflush_next_check(char *data, int len, bool fence)
 #endif
 		if (clht_ptr_from_off( ((bucket_t *)data)->next_off ) )
             clflush_next_check((char *)clht_ptr_from_off( ((bucket_t *)data)->next_off ), sizeof(bucket_t), false);
-        while(read_tsc() < etsc) cpu_pause();
+        // while(read_tsc() < etsc) cpu_pause();
     }
     if (fence)
         mfence();
