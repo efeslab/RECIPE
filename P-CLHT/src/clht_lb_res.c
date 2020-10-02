@@ -81,7 +81,7 @@ __thread size_t check_ht_status_steps = CLHT_STATUS_INVOK_IN;
 #endif
 */
 
-#define PMDK_TRANSACTION    0
+#define PMDK_TRANSACTION    1
 
     const char*
 clht_type_desc()
