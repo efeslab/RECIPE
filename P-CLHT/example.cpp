@@ -72,17 +72,20 @@ void run(char **argv) {
         auto starttime = std::chrono::system_clock::now();
         next_thread_id.store(0);
         auto func = [&]() {
+            // std::cout << "[CLHT] start " << std::endl;
             int thread_id = next_thread_id.fetch_add(1);
             tds[thread_id].id = thread_id;
             tds[thread_id].ht = hashtable;
 
             uint64_t start_key = n / num_thread * (uint64_t)thread_id;
             uint64_t end_key = start_key + n / num_thread;
+            // std::cout << "[CLHT] " << start_key << " " << end_key << std::endl;
 
             clht_gc_thread_init(tds[thread_id].ht, tds[thread_id].id);
             barrier_cross(&barrier);
 
             for (uint64_t i = start_key; i < end_key; i++) {
+                // std::cout << "[CLHT] get " << i << std::endl;
                 clht_put(tds[thread_id].ht, keys[i], keys[i]);
             }
         };
@@ -117,6 +120,7 @@ void run(char **argv) {
             barrier_cross(&barrier);
 
             for (uint64_t i = start_key; i < end_key; i++) {
+                // std::cout << "[CLHT] get " << i << std::endl;
                 clht_hashtable_t *ht = (clht_hashtable_t*)clht_ptr_from_off((tds[thread_id].ht)->ht_off);
                 uintptr_t val = clht_get(ht, keys[i]);
                 if (val != keys[i]) {

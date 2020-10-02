@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include <libpmem.h>
 #include <libpmemobj.h>
 
 #include "clht_lb_res.h"
@@ -81,7 +82,9 @@ __thread size_t check_ht_status_steps = CLHT_STATUS_INVOK_IN;
 #endif
 */
 
-#define PMDK_TRANSACTION    0
+#define PMDK_TRANSACTION    1
+
+
 
     const char*
 clht_type_desc()
@@ -116,6 +119,17 @@ __ac_Jenkins_hash_64(uint64_t key)
     return key;
 }
 
+/**
+ * Agamotto:
+ * Volatile locks are better.
+ */
+// #define BUCKET_LOCK(ht, bucket) (&(bucket)->lock)
+
+// #define LOCK_IDX(ht, bucket) (((uint64_t)(bucket)) - \
+//     ((uint64_t)clht_ptr_from_off((ht)->table_off))) / sizeof(*(bucket))
+// #define BUCKET_LOCK(ht, bucket) (&(ht)->locks[LOCK_IDX(ht, bucket)])
+#define BUCKET_LOCK(ht, bucket) ((bucket)->lock)
+
 static uint64_t write_latency = 0;
 static uint64_t CPU_FREQ_MHZ = 2100;
 
@@ -136,16 +150,23 @@ static inline unsigned long read_tsc(void)
 }
 
 static inline void mfence() {
-    asm volatile("mfence":::"memory");
+    asm volatile("sfence":::"memory");
 }
 
 static inline void clflush(char *data, int len, bool fence)
 {
+    // printf("ding\n");
+    // if (fence) {
+    //     pmem_persist(data, len);
+    // } else {
+    //     pmem_flush(data, len);
+    // }
+
     volatile char *ptr = (char *)((unsigned long)data &~(CACHE_LINE_SIZE-1));
-    if (fence)
-        mfence();
+    // if (fence)
+    //     mfence();
     for(; ptr<data+len; ptr+=CACHE_LINE_SIZE){
-        unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
+        // unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
 #ifdef CLFLUSH
         asm volatile("clflush %0" : "+m" (*(volatile char *)ptr));
 #elif CLFLUSH_OPT
@@ -153,7 +174,7 @@ static inline void clflush(char *data, int len, bool fence)
 #elif CLWB
         asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(ptr)));
 #endif
-	    while(read_tsc() < etsc) cpu_pause();
+	    // while(read_tsc() < etsc) cpu_pause();
     }
     if (fence)
         mfence();
@@ -162,10 +183,10 @@ static inline void clflush(char *data, int len, bool fence)
 static inline void clflush_next_check(char *data, int len, bool fence)
 {
     volatile char *ptr = (char *)((unsigned long)data &~(CACHE_LINE_SIZE-1));
-    if (fence)
-        mfence();
+    // if (fence)
+    //     mfence();
     for(; ptr<data+len; ptr+=CACHE_LINE_SIZE){
-        unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
+        // unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
 #ifdef CLFLUSH
         asm volatile("clflush %0" : "+m" (*(volatile char *)ptr));
 #elif CLFLUSH_OPT
@@ -175,7 +196,7 @@ static inline void clflush_next_check(char *data, int len, bool fence)
 #endif
 		if (clht_ptr_from_off( ((bucket_t *)data)->next_off ) )
             clflush_next_check((char *)clht_ptr_from_off( ((bucket_t *)data)->next_off ), sizeof(bucket_t), false);
-        while(read_tsc() < etsc) cpu_pause();
+        // while(read_tsc() < etsc) cpu_pause();
     }
     if (fence)
         mfence();
@@ -190,7 +211,8 @@ void* clht_ptr_from_off(uint64_t offset)
 static int bucket_init(PMEMobjpool *pop_arg, void *ptr, void *arg) 
 {
     bucket_t* bucket = ptr;
-    bucket->lock = 0;
+    // bucket->lock = 0;
+    // *BUCKET_LOCK(bucket) = 0;
 
     uint32_t j;
     for (j = 0; j < ENTRIES_PER_BUCKET; j++)
@@ -211,7 +233,9 @@ clht_bucket_create()
 TX_BEGIN(pop) {
     bucket_oid = pmemobj_tx_alloc(sizeof(bucket_t), TOID_TYPE_NUM(bucket_t));
     bucket = pmemobj_direct(bucket_oid);
-    bucket->lock = 0;
+    bucket->lock = calloc(1, sizeof(*bucket->lock));
+    // bucket->lock = 0;
+    // *BUCKET_LOCK(bucket) = 0;
     
     uint32_t j;
     for (j = 0; j < ENTRIES_PER_BUCKET; j++)
@@ -241,6 +265,9 @@ TX_BEGIN(pop) {
 clht_bucket_create_stats(clht_hashtable_t* h, int* resize)
 {
     bucket_t* b = clht_bucket_create();
+    clht_lock_t *l = BUCKET_LOCK(h, b);
+    // printf("lock = %p\n", l);
+    *BUCKET_LOCK(h, b) = 0;
     //if (IAF_U32(&h->num_expands) == h->num_expands_threshold)
     if (IAF_U32(&h->num_expands) >= h->num_expands_threshold)
     {
@@ -382,11 +409,15 @@ TX_BEGIN(pop) {
     }
 
     //memset(bucket_ptr, 0, num_buckets * (sizeof(bucket_t)));
+    // hashtable->locks = calloc(num_buckets, sizeof(*hashtable->locks));
+    // printf("LOCKS=%p\n", hashtable->locks);
 
     uint64_t i;
     for (i = 0; i < num_buckets; i++)
     {
-        bucket_ptr[i].lock = LOCK_FREE;
+        // bucket_ptr[i].lock = LOCK_FREE;
+        BUCKET_LOCK(hashtable, bucket_ptr + i) = calloc(1, sizeof(clht_lock_t));
+        *BUCKET_LOCK(hashtable, bucket_ptr + i) = LOCK_FREE;
         uint32_t j;
         for (j = 0; j < ENTRIES_PER_BUCKET; j++)
         {
@@ -483,6 +514,8 @@ bucket_exists(volatile bucket_t* bucket, clht_addr_t key)
     return false;
 }
 
+
+
 /* Insert a key-value entry into a hash table. */
     int
 clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
@@ -492,20 +525,21 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
     volatile bucket_t* bucket = ((bucket_t*)clht_ptr_from_off(hashtable->table_off)) + bin;
 
 #if CLHT_READ_ONLY_FAIL == 1
-    if (bucket_exists(bucket, key))
-    {
+    if (bucket_exists(bucket, key)) {
         return false;
     }
 #endif
-
-    clht_lock_t* lock = &bucket->lock;
+    // clht_lock_t* lock = &bucket->lock;
+    clht_lock_t *lock = BUCKET_LOCK(hashtable, bucket);
+    // printf("lock = %d\n", *lock);
     while (!LOCK_ACQ(lock, hashtable))
     {
         hashtable = clht_ptr_from_off(h->ht_off);
         size_t bin = clht_hash(hashtable, key);
 
         bucket = ((bucket_t*)clht_ptr_from_off(hashtable->table_off)) + bin;
-        lock = &bucket->lock;
+        // lock = &bucket->lock;
+        lock = BUCKET_LOCK(hashtable, bucket);
     }
 
     CLHT_GC_HT_VERSION_USED(hashtable);
@@ -545,18 +579,18 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                     b->val[0] = val;
 #ifdef __tile__
                     /* keep the writes in order */
-                    _mm_sfence();
+                    // _mm_sfence();
 #endif
                     b->key[0] = key;
 #ifdef __tile__
                     /* make sure they are visible */
-                    _mm_sfence();
+                    // _mm_sfence();
 #endif
                 } TX_FINALLY {
-                    clflush((char *)b, sizeof(bucket_t), true);
+                    // clflush((char *)b, sizeof(bucket_t), true);
                     bucket->next_off = pmemobj_oid(b).off;
                     bucket_t* next_ptr = clht_ptr_from_off(bucket->next_off);
-                    clflush((char *)&next_ptr, sizeof(uintptr_t), true);
+                    // clflush((char *)&next_ptr, sizeof(uintptr_t), true);
                 } TX_ONABORT {
                     printf("Failed clht_put, rolling back\n");
                 } TX_END
@@ -565,12 +599,12 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                 b->val[0] = val;
 #ifdef __tile__
                 /* keep the writes in order */
-                _mm_sfence();
+                // _mm_sfence();
 #endif
                 b->key[0] = key;
 #ifdef __tile__
                 /* make sure they are visible */
-                mm_sfence();
+                // mm_sfence();
 #endif
                 clflush((char *)b, sizeof(bucket_t), true);
                 bucket->next_off = pmemobj_oid(b).off;
@@ -583,7 +617,7 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                 *empty_v = val;
 #ifdef __tile__
                 /* keep the writes in order */
-                _mm_sfence();
+                // _mm_sfence();
 #endif
                 *empty = key;
                 clflush((char *)empty, sizeof(uintptr_t), true);
@@ -623,14 +657,16 @@ clht_remove(clht_t* h, clht_addr_t key)
     }
 #endif
 
-    clht_lock_t* lock = &bucket->lock;
+    // clht_lock_t* lock = &bucket->lock;
+    clht_lock_t* lock = BUCKET_LOCK(hashtable, bucket);
     while (!LOCK_ACQ(lock, hashtable))
     {
         hashtable = clht_ptr_from_off(h->ht_off);
         size_t bin = clht_hash(hashtable, key);
 
         bucket = ((bucket_t*)clht_ptr_from_off(hashtable->table_off)) + bin;
-        lock = &bucket->lock;
+        // lock = &bucket->lock;
+        lock = BUCKET_LOCK(hashtable, bucket);
     }
 
     CLHT_GC_HT_VERSION_USED(hashtable);
@@ -721,9 +757,12 @@ clht_put_seq(clht_hashtable_t* hashtable, clht_addr_t key, clht_val_t val, uint6
 
 
     static int
-bucket_cpy(clht_t* h, volatile bucket_t* bucket, clht_hashtable_t* ht_new)
+bucket_cpy(clht_t* h, clht_hashtable_t* ht_old, volatile bucket_t* bucket, clht_hashtable_t* ht_new)
 {
-    if (!LOCK_ACQ_RES(&bucket->lock))
+    if (h) ht_old = clht_ptr_from_off(h->ht_off);
+    // if (!LOCK_ACQ_RES(&bucket->lock))
+    // if (!LOCK_ACQ_RES(BUCKET_LOCK(ht_new, bucket)))
+    if (!LOCK_ACQ_RES(BUCKET_LOCK(ht_old, bucket)))
     {
         return 0;
     }
@@ -789,7 +828,7 @@ ht_resize_help(clht_hashtable_t* h)
     for (b = h->hash; b >= 0; b--)
     {
         bucket_t* bu_cur = ((bucket_t*)clht_ptr_from_off(h->table_off)) + b;
-        if (!bucket_cpy((clht_t *)h, bu_cur, h->table_tmp))
+        if (!bucket_cpy(NULL, h, bu_cur, h->table_tmp))
         {	    /* reached a point where the resizer is handling */
             /* printf("[GC-%02d] helped  #buckets: %10zu = %5.1f%%\n",  */
             /* 	 clht_gc_get_id(), h->num_buckets - b, 100.0 * (h->num_buckets - b) / h->num_buckets); */
@@ -846,7 +885,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     for (b = 0; b < ht_old->num_buckets; b++)
     {
         bucket_t* bu_cur = (bucket_t*)(clht_ptr_from_off(ht_old->table_off)) + b;
-        int ret = bucket_cpy(h, bu_cur, ht_new); /* reached a point where the helper is handling */
+        int ret = bucket_cpy(h, NULL, bu_cur, ht_new); /* reached a point where the helper is handling */
 		if (ret == -1)
 			return -1;
 
@@ -868,7 +907,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     for (b = 0; b < ht_old->num_buckets; b++)
     {  
         bucket_t* bu_cur = (bucket_t*)(clht_ptr_from_off(ht_old->table_off)) + b;
-        int ret = bucket_cpy(h, bu_cur, ht_new);
+        int ret = bucket_cpy(h, NULL, bu_cur, ht_new);
 		if (ret == -1)
 			return -1;
     }
@@ -891,7 +930,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
         /* ht_new->num_expands_threshold = ht_new->num_expands + 1; */
     }
 
-    mfence();
+    // mfence();
     clflush((char *)ht_new, sizeof(clht_hashtable_t), false);
     clflush_next_check((char *)clht_ptr_from_off(ht_new->table_off), num_buckets_new * sizeof(bucket_t), false);
     mfence();
@@ -971,6 +1010,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
 #endif
 	DEBUG_PRINT("Parent reached correctly\n"); 
     ht_old->table_new = ht_new;
+
     TRYLOCK_RLS(h->resize_lock);
 
    ticks e = getticks() - s;
@@ -1001,6 +1041,8 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
 #if PMDK_TRANSACTION
     } TX_END
 #endif
+    printf("resize done.\n");
+    
     return 1;
 }
 
@@ -1039,6 +1081,8 @@ clht_size(clht_hashtable_t* hashtable)
     size_t
 ht_status(clht_t* h, int resize_increase, int just_print)
 {
+    // static uint8_t status_lock = 0;
+    // if (TRYLOCK_ACQ(&status_lock) && !resize_increase) return 0;
     if (TRYLOCK_ACQ(&h->status_lock) && !resize_increase)
     {
         return 0;
@@ -1074,35 +1118,29 @@ ht_status(clht_t* h, int resize_increase, int just_print)
         }
         while (bucket != NULL);
 
-        if (expands_cont > expands_max)
-        {
+        if (expands_cont > expands_max) {
             expands_max = expands_cont;
         }
     }
 
     double full_ratio = 100.0 * size / ((hashtable->num_buckets) * ENTRIES_PER_BUCKET);
 
-    if (just_print)
-    {
-        printf("[STATUS-%02d] #bu: %7zu / #elems: %7zu / full%%: %8.4f%% / expands: %4d / max expands: %2d\n",
-                99, hashtable->num_buckets, size, full_ratio, expands, expands_max);
-    }
-    else
-    {
-        if (full_ratio > 0 && full_ratio < CLHT_PERC_FULL_HALVE)
-        {
-//            printf("[STATUS-%02d] #bu: %7zu / #elems: %7zu / full%%: %8.4f%% / expands: %4d / max expands: %2d\n",
-//                    clht_gc_get_id(), hashtable->num_buckets, size, full_ratio, expands, expands_max);
+    if (just_print) {
+        // printf("[STATUS-%02d] #bu: %7zu / #elems: %7zu / full%%: %8.4f%% / expands: %4d / max expands: %2d\n",
+        //         99, hashtable->num_buckets, size, full_ratio, expands, expands_max);
+    } else {
+        if (full_ratio > 0 && full_ratio < CLHT_PERC_FULL_HALVE) {
+        //    printf("[STATUS-%02d] #bu: %7zu / #elems: %7zu / full%%: %8.4f%% / expands: %4d / max expands: %2d\n",
+        //            clht_gc_get_id(), hashtable->num_buckets, size, full_ratio, expands, expands_max);
             ht_resize_pes(h, 0, 33);
-        }
-        else if ((full_ratio > 0 && full_ratio > CLHT_PERC_FULL_DOUBLE) || expands_max > CLHT_MAX_EXPANSIONS ||
+        } else if ((full_ratio > 0 && full_ratio > CLHT_PERC_FULL_DOUBLE) || expands_max > CLHT_MAX_EXPANSIONS ||
                 resize_increase)
         {
             int inc_by = (full_ratio / CLHT_OCCUP_AFTER_RES);
             int inc_by_pow2 = pow2roundup(inc_by);
 
-//            printf("[STATUS-%02d] #bu: %7zu / #elems: %7zu / full%%: %8.4f%% / expands: %4d / max expands: %2d\n",
-//                    clht_gc_get_id(), hashtable->num_buckets, size, full_ratio, expands, expands_max);
+        //    printf("[STATUS-%02d] #bu: %7zu / #elems: %7zu / full%%: %8.4f%% / expands: %4d / max expands: %2d\n",
+        //            clht_gc_get_id(), hashtable->num_buckets, size, full_ratio, expands, expands_max);
             if (inc_by_pow2 == 1)
             {
                 inc_by_pow2 = 2;
@@ -1207,9 +1245,11 @@ void clht_lock_initialization(clht_t *h)
     int i;
     for (i = 0; i < ht->num_buckets; i++) {
         bucket_t* temp = clht_ptr_from_off(ht->table_off);
-        temp[i].lock = LOCK_FREE;
+        // temp[i].lock = LOCK_FREE;
+        *BUCKET_LOCK(ht, temp + i) = LOCK_FREE;
         for (next = clht_ptr_from_off(temp[i].next_off); next != NULL; next = clht_ptr_from_off(next->next_off)) {
-            next->lock = LOCK_FREE;
+            // next->lock = LOCK_FREE;
+            *BUCKET_LOCK(ht, next) = LOCK_FREE;
         }
     }
 }

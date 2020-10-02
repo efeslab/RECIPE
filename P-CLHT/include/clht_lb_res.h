@@ -157,7 +157,7 @@ typedef volatile uint8_t clht_lock_t;
 
 typedef struct ALIGNED(CACHE_LINE_SIZE) bucket_s
 {
-  clht_lock_t lock;
+  clht_lock_t *lock;
   volatile uint32_t hops;
   clht_addr_t key[ENTRIES_PER_BUCKET];
   clht_val_t val[ENTRIES_PER_BUCKET];
@@ -198,6 +198,7 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) clht_hashtable_s
     struct
     {
       size_t num_buckets;
+      // volatile uint8_t *locks;
       // PMEMoid table;
       uint64_t table_off;
       //bucket_t* table;
