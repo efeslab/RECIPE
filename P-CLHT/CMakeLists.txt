@@ -27,8 +27,8 @@ endif()
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=skylake -mrtm -mcx16 -mavx -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
                                                                                     
 # To use wllvm                                                                      
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=skylake -fheinous-gnu-extensions -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fheinous-gnu-extensions")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=c++17 -march=skylake -fheinous-gnu-extensions -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fheinous-gnu-extensions")
 
 execute_process(COMMAND cat /proc/cpuinfo COMMAND grep clflush OUTPUT_VARIABLE ENABLE_CLFLUSH)
 execute_process(COMMAND cat /proc/cpuinfo COMMAND grep clflushopt OUTPUT_VARIABLE ENABLE_CLFLUSHOPT)
@@ -58,7 +58,7 @@ find_library(JemallocLib jemalloc)
 find_library(TbbLib tbb)
 find_package (Threads)
 
-set(LOCAL_SOURCE src/clht_lb_res.c src/clht_gc.c external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
+set(LOCAL_SOURCE src/clht_lb_res.c src/volatile_intrinsics.c src/clht_gc.c external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
 set(LOCAL_LIBS ${TbbLib} ${JemallocLib} boost_system boost_thread pthread pmemobj pmem)
 if (PMDK_LIBS)
     set(LOCAL_SOURCE ${LOCAL_SOURCE})
