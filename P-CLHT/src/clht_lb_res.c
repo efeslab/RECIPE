@@ -219,7 +219,7 @@ clht_bucket_create_stats(clht_hashtable_t* h, int* resize)
 clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 
     clht_t* 
-clht_create(uint64_t num_buckets)
+clht_create(const char *pool_name, uint64_t num_buckets)
 {
     // Enable prefault
     int arg_open = 1, arg_create = 1;
@@ -229,11 +229,11 @@ clht_create(uint64_t num_buckets)
         perror("failed to configure prefaults at create\n");
 
     // Open the PMEMpool if it exists, otherwise create it
-    size_t pool_size = 32*1024*1024*1024UL;
-    if (access("/dev/shm/pool", F_OK) != -1)
-        pop = pmemobj_open("/dev/shm/pool", POBJ_LAYOUT_NAME(clht));
+    size_t pool_size = PMEMOBJ_MIN_POOL; //32*1024*1024*1024UL;
+    if (access(pool_name, F_OK) != -1)
+        pop = pmemobj_open(pool_name, POBJ_LAYOUT_NAME(clht));
     else
-        pop = pmemobj_create("/dev/shm/pool", POBJ_LAYOUT_NAME(clht), pool_size, 0666);
+        pop = pmemobj_create(pool_name, POBJ_LAYOUT_NAME(clht), pool_size, 0666);
 
     if (pop == NULL)
         perror("failed to open the pool\n");
