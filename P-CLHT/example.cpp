@@ -47,7 +47,7 @@ barrier_t barrier;
 void run(char **argv) {
     std::cout << "Simple Example of P-CLHT" << std::endl;
 
-    uint64_t n = std::atoll(argv[1]);
+    uint64_t n = std::atoll(argv[2]);
     uint64_t *keys = new uint64_t[n];
 
     // Generate keys
@@ -55,11 +55,11 @@ void run(char **argv) {
         keys[i] = i + 1;
     }
 
-    int num_thread = atoi(argv[2]);
+    int num_thread = atoi(argv[3]);
 
     printf("operation,n,ops/s\n");
 
-    clht_t *hashtable = clht_create(512);
+    clht_t *hashtable = clht_create(argv[1], 512);
 
     barrier_init(&barrier, num_thread);
 
@@ -143,8 +143,8 @@ void run(char **argv) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        printf("usage: %s [n] [nthreads]\nn: number of keys (integer)\nnthreads: number of threads (integer)\n", argv[0]);
+    if (argc != 4) {
+        printf("usage: %s [pool] [n] [nthreads]\npool: name of persistent memory pool\nn: number of keys (integer)\nnthreads: number of threads (integer)\n", argv[0]);
         return 1;
     }
 

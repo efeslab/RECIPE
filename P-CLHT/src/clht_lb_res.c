@@ -256,24 +256,25 @@ clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 // clht_hashtable_t* g_ptr;
 
     clht_t* 
-clht_create(uint64_t num_buckets)
+clht_create(const char *pool_name, uint64_t num_buckets)
 {
-    // Open the PMEMpool if it exists, otherwise create it.
-    size_t pool_size = 2*1024*1024*1024UL;
-    if( access("/mnt/pmem/pool", F_OK ) != -1 ) 
-    {
-        pop = pmemobj_open("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht));
-        // reload the root
-    } else 
-    {
-        pop = pmemobj_create("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht), pool_size, 0666);
-    }
-    
-	if (pop == NULL)
-    {
-		perror("failed to open the pool\n");
-    }
-    
+    // Enable prefault
+    int arg_open = 1, arg_create = 1;
+    if ((pmemobj_ctl_set(pop, "prefault.at_open", &arg_open)) != 0)
+        perror("failed to configure prefaults at open\n");
+    if ((pmemobj_ctl_set(pop, "prefault.at_create", &arg_create)) != 0)
+        perror("failed to configure prefaults at create\n");
+
+    // Open the PMEMpool if it exists, otherwise create it
+    size_t pool_size = PMEMOBJ_MIN_POOL; //32*1024*1024*1024UL;
+    if (access(pool_name, F_OK) != -1)
+        pop = pmemobj_open(pool_name, POBJ_LAYOUT_NAME(clht));
+    else
+        pop = pmemobj_create(pool_name, POBJ_LAYOUT_NAME(clht), pool_size, 0666);
+
+    if (pop == NULL)
+        perror("failed to open the pool\n");
+
     // Create the root pointer
     PMEMoid my_root = pmemobj_root(pop, sizeof(clht_t));
     if (pmemobj_direct(my_root) == NULL)
