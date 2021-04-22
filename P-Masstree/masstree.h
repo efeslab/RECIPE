@@ -9,6 +9,7 @@
 #include <mutex>
 #include <atomic>
 #include <assert.h>
+#include <emmintrin.h>
 #ifdef LOCK_INIT
 #include "tbb/concurrent_vector.h"
 #endif
@@ -30,6 +31,8 @@ namespace masstree {
 #define IS_LV(x)            ((uintptr_t)x & LV_BITS)
 #define LV_PTR(x)           ((uint64_t)((uintptr_t)x & ~LV_BITS))
 #define SET_LV(x)           ((void*)((uintptr_t)x | LV_BITS))
+
+enum state {UNLOCKED = 0, LOCKED = 1, OBSOLETE = 2};
 
 class kv {
     private:
@@ -95,7 +98,7 @@ class masstree {
 
         void *get(char *key, MASS::ThreadInfo &threadEpocheInfo);
 
-        void split(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *right, uint32_t level, void *child);
+        void split(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *right, uint32_t level, void *child, bool isOverWrite);
 
         int merge(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, uint32_t level, MASS::ThreadInfo &threadInfo);
 
@@ -330,22 +333,21 @@ class permuter {
 
 class leafnode {
     private:
-        permuter permutation;   // 8bytes
-        kv entry[LEAF_WIDTH];   // 240bytes
-        uint64_t next;          // 8bytes
-        uint32_t level_;        // 4bytes
-        uint32_t obsolete;      // 4bytes
-        uint64_t wlock;         // 8bytes
-        uint64_t leftmost_ptr;  // 8bytes
-        uint64_t highest;       // 8bytes
-        uint64_t dummy[4];      // 32bytes
+        permuter permutation;                                   // 8bytes
+        leafnode *next;                                         // 8bytes
+        std::atomic<uint64_t> typeVersionLockObsolete{0b100};   // 8bytes
+        leafnode *leftmost_ptr;                                 // 8bytes
+        uint64_t highest;                                       // 8bytes
+        uint32_t level_;                                        // 4bytes
+        uint32_t dummy[5];                                      // 20bytes
+        kv entry[LEAF_WIDTH];                                   // 240bytes
 
     public:
         leafnode(uint32_t level);
 
         leafnode(void *left, uint64_t key, void *right, uint32_t level);
 
-        ~leafnode ();
+        ~leafnode () {}
 
         void *operator new(size_t size);
 
@@ -357,13 +359,29 @@ class leafnode {
 
         key_indexed_position key_lower_bound(uint64_t key);
 
-        void lock();
+        bool isLocked(uint64_t version) const;
 
-        void unlock();
+        void writeLock();
 
-        int trylock();
+        void writeLockOrRestart(int &needRestart);
 
-        uint32_t is_obsolete();
+        bool tryLock(int &needRestart);
+
+        void upgradeToWriteLockOrRestart(uint64_t &version, int &needRestart);
+
+        void writeUnlock(bool isOverWrite);
+
+        uint64_t readLockOrRestart(int &needRestart) const;
+
+        void checkOrRestart(uint64_t startRead, int &needRestart) const;
+
+        void readUnlockOrRestart(uint64_t startRead, int &needRestart) const;
+
+        static bool isObsolete(uint64_t version);
+
+        void writeUnlockObsolete() {
+            typeVersionLockObsolete.fetch_add(0b11);
+        }
 
         int compare_key(const uint64_t a, const uint64_t b);
 
@@ -387,7 +405,7 @@ class leafnode {
 
         void *leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, key_indexed_position &kx_, MASS::ThreadInfo &threadInfo);
 
-        void *inter_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *value, key_indexed_position &kx_, leafnode *child);
+        void *inter_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *value, key_indexed_position &kx_, leafnode *child, bool child_isOverWrite);
 
         int inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, key_indexed_position &kx_, MASS::ThreadInfo &threadInfo);
 

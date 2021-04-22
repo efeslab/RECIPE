@@ -117,12 +117,11 @@ void run(char **argv) {
             barrier_cross(&barrier);
 
             for (uint64_t i = start_key; i < end_key; i++) {
-                clht_hashtable_t *ht = (clht_hashtable_t*)clht_ptr_from_off((tds[thread_id].ht)->ht_off);
-                uintptr_t val = clht_get(ht, keys[i]);
-                if (val != keys[i]) {
-                    std::cout << "[CLHT] wrong key read: " << val << " expected: " << keys[i] << std::endl;
-                    exit(1);
-                }
+                    uintptr_t val = clht_get(tds[thread_id].ht, keys[i]);
+                    if (val != keys[i]) {
+                        std::cout << "[CLHT] wrong key read: " << val << "expected: " << keys[i] << std::endl;
+                        exit(1);
+                    }
             }
         };
 
