@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <algorithm>
+#include <emmintrin.h>
 
 #include "N.h"
 #include "N4.cpp"
@@ -30,7 +31,7 @@ namespace ART_ROWEX {
 
     inline void N::mfence()
     {
-        asm volatile("mfence":::"memory");
+        asm volatile("sfence":::"memory");
     }
 
     inline void N::clflush(char *data, int len, bool front, bool back)
@@ -53,6 +54,14 @@ namespace ART_ROWEX {
         if (back)
             mfence();
     }
+
+    inline void N::movnt64(uint64_t *dest, uint64_t const &src, bool front, bool back) {
+        assert(((uint64_t)dest & 7) == 0);
+        if (front) mfence();
+        _mm_stream_si64((long long int *)dest, *(long long int *)&src);
+        if (back) mfence();
+    }
+
 #ifdef LOCK_INIT
     void lock_initialization () {
         printf("lock table size = %lu\n", lock_initializer.size());
@@ -177,7 +186,7 @@ namespace ART_ROWEX {
             return;
         }
 
-        clflush((char *)nBig, sizeof(biggerN), true, true);
+        clflush((char *)nBig, sizeof(biggerN), false, true);
         N::change(parentNode, keyParent, nBig);
         parentNode->writeUnlock();
 
@@ -201,7 +210,7 @@ namespace ART_ROWEX {
             return true;
         }
 
-        clflush((char *)nNew, sizeof(curN), true, true);
+        clflush((char *)nNew, sizeof(curN), false, true);
         N::change(parentNode, keyParent, nNew);
         parentNode->writeUnlock();
 
@@ -325,7 +334,7 @@ namespace ART_ROWEX {
 
         n->remove(key, true, true);
         n->copyTo(nSmall);
-        clflush((char *) nSmall, sizeof(smallerN), true, true);
+        clflush((char *) nSmall, sizeof(smallerN), false, true);
         N::change(parentNode, keyParent, nSmall);
 
         parentNode->writeUnlock();

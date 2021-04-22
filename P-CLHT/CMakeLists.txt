@@ -42,12 +42,5 @@ set(P_CLHT_TEST example.cpp src/clht_lb_res.c src/clht_gc.c
     external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
 add_executable(example ${P_CLHT_TEST})
 
-target_link_libraries(example ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
-    boost_thread pthread)
-
-set(P_CLHT_TEST test.cpp src/clht_lb_res.c src/clht_gc.c
-    external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
-add_executable(test ${P_CLHT_TEST})
-
-target_link_libraries(test ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
-    boost_thread pthread)
+target_link_libraries(example ${TbbLib} ${JemallocLib} boost_system
+    boost_thread pthread pmemobj pmem)
