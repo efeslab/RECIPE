@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.16)
 project(P-CLHT)
 
 if (PMDK_INCLUDE_DIR)
@@ -8,25 +8,24 @@ endif()
 
 if (PMDK_LIBS)
     set(LOCAL_SOURCE ${LOCAL_SOURCE})
-    link_directories(${PMDK_LIBS}/pmdk_debug/)
+    link_directories(${PMDK_LIBS})
 endif()
 
-set(CMAKE_C_COMPILER /usr/local/bin/wllvm)
-set(CMAKE_CXX_COMPILER /usr/local/bin/wllvm++)
-
-if( NOT CMAKE_BUILD_TYPE )
+if(NOT CMAKE_BUILD_TYPE)
     message(STATUS "No build type selected, default to Release")
-    set( CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE Release)
 else()
     message(STATUS "Build type is set to ${CMAKE_BUILD_TYPE}")
 endif()
 
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -mavx -mavx2 -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
+message("${CMAKE_BUILD_TYPE}")
+
+# #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -mavx -mavx2 -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
                                                                                     
-# To build and use pmemcheck                                                        
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=skylake -mrtm -mcx16 -mavx -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
+# # To build and use pmemcheck                                                        
+# #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=skylake -mrtm -mcx16 -mavx -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
                                                                                     
-# To use wllvm                                                                      
+# To use wllvm  q                                                                    
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=c++17 -march=skylake -fheinous-gnu-extensions -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fheinous-gnu-extensions")
 
