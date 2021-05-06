@@ -272,8 +272,8 @@ clht_create(const char *pool_name, uint64_t num_buckets)
     else
         pop = pmemobj_create(pool_name, POBJ_LAYOUT_NAME(clht), pool_size, 0666);
 
-    if (pop == NULL)
-        perror("failed to open the pool\n");
+    if (pop == NULL) {
+        perror("failed to open the pool\n"); exit(0); }
 
     // Create the root pointer
     PMEMoid my_root = pmemobj_root(pop, sizeof(clht_t));

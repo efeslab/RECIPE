@@ -8,7 +8,11 @@ else()
     message(STATUS "Build type is set to ${CMAKE_BUILD_TYPE}")
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -mavx -mavx2 -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -mavx -mavx2 -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
+
+# To use wllvm                                                                 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=c++17 -march=skylake -fheinous-gnu-extensions -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fheinous-gnu-extensions")
 
 execute_process(COMMAND cat /proc/cpuinfo COMMAND grep clflush OUTPUT_VARIABLE ENABLE_CLFLUSH)
 execute_process(COMMAND cat /proc/cpuinfo COMMAND grep clflushopt OUTPUT_VARIABLE ENABLE_CLFLUSHOPT)
@@ -36,11 +40,23 @@ include_directories(include external/include)
 
 find_library(JemallocLib jemalloc)
 find_library(TbbLib tbb)
-find_package (Threads)
+find_package(Threads)
 
-set(P_CLHT_TEST example.cpp src/clht_lb_res.c src/clht_gc.c
-    external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
-add_executable(example ${P_CLHT_TEST})
+set(LOCAL_SOURCE src/clht_lb_res.c src/clht_gc.c external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
+set(LOCAL_LIBS ${TbbLib} ${JemallocLib} boost_system boost_thread pthread pmemobj pmem)
+if (PMDK_LIBS)
+    set(LOCAL_SOURCE ${LOCAL_SOURCE})
+endif()
+
+set(P_CLHT_TEST example.cpp ${LOCAL_SOURCE})
+# add_executable(p-clht_example ${P_CLHT_TEST})
+add_pmdk_target(TARGET p-clht_example SOURCES ${P_CLHT_TEST} VERSION "1.8" 
+                EXTRA_LIBS ${TbbLib} ${JemallocLib} boost_system boost_thread pthread)
+
+# target_link_libraries(p-clht_example ${LOCAL_LIBS})
+
+add_executable(p-clht_test ${P_CLHT_TEST})
+# add_pmdk_target(TARGET p-clht_test SOURCES ${P_CLHT_TEST} VERSION "1.9.2")
 
 target_link_libraries(example ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
     boost_thread pthread)

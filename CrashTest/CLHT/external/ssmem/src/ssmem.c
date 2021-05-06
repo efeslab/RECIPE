@@ -42,7 +42,7 @@ __thread volatile ssmem_ts_t* ssmem_ts_local = NULL;
 __thread size_t ssmem_num_allocators = 0;
 __thread ssmem_list_t* ssmem_allocator_list = NULL;
 
-inline int 
+int 
 ssmem_get_id()
 {
   if (ssmem_ts_local != NULL)
@@ -164,7 +164,7 @@ ssmem_list_node_new(void* mem, ssmem_list_t* next)
 /* 
  *
  */
-inline ssmem_released_t*
+ssmem_released_t*
 ssmem_released_node_new(void* mem, ssmem_released_t* next)
 {
   ssmem_released_t* rel;
@@ -237,7 +237,7 @@ ssmem_free_set_free(ssmem_free_set_t* set)
 /* 
  * 
  */
-static inline void
+static void
 ssmem_free_set_make_avail(ssmem_allocator_t* a, ssmem_free_set_t* set)
 {
   /* printf("[ALLOC] added to avail_set : %p\n", set); */
@@ -349,7 +349,7 @@ ssmem_term()
 /* 
  * 
  */
-inline void 
+void 
 ssmem_ts_next()
 {
   ssmem_ts_local->version++;
@@ -600,7 +600,7 @@ ssmem_mem_reclaim(ssmem_allocator_t* a)
 /* 
  *
  */
-inline void 
+void 
 ssmem_free(ssmem_allocator_t* a, void* obj)
 {
   ssmem_free_set_t* fs = a->free_set_list;
@@ -626,7 +626,7 @@ ssmem_free(ssmem_allocator_t* a, void* obj)
 /* 
  *
  */
-inline void 
+void 
 ssmem_release(ssmem_allocator_t* a, void* obj)
 {
   ssmem_released_t* rel_list = a->released_mem_list;
