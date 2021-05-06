@@ -55,15 +55,15 @@ add_pmdk_target(TARGET p-clht_example SOURCES ${P_CLHT_TEST} VERSION "1.8"
 
 # target_link_libraries(p-clht_example ${LOCAL_LIBS})
 
-add_executable(p-clht_test ${P_CLHT_TEST})
+# add_executable(p-clht_test ${P_CLHT_TEST})
 # add_pmdk_target(TARGET p-clht_test SOURCES ${P_CLHT_TEST} VERSION "1.9.2")
 
-target_link_libraries(example ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
-    boost_thread pthread)
+# target_link_libraries(example ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
+#     boost_thread pthread)
 
-set(P_CLHT_TEST test.cpp src/clht_lb_res.c src/clht_gc.c
-    external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
-add_executable(test ${P_CLHT_TEST})
+# set(P_CLHT_TEST test.cpp src/clht_lb_res.c src/clht_gc.c
+#     external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
+# add_executable(test ${P_CLHT_TEST})
 
-target_link_libraries(test ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
-    boost_thread pthread)
+# target_link_libraries(test ${TbbLib} ${JemallocLib} pmemobj pmem boost_system
+#     boost_thread pthread)
