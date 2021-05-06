@@ -59,7 +59,7 @@ void run(char **argv) {
 
     printf("operation,n,ops/s\n");
 
-    clht_t *hashtable = clht_create(argv[1], 512);
+    clht_t *hashtable = clht_create(argv[1], 10);
 
     barrier_init(&barrier, num_thread);
 

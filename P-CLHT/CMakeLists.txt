@@ -20,7 +20,7 @@ endif()
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -mavx -mavx2 -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
 
-# To use wllvm  q                                                                    
+# To use wllvm                                                                 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=c++17 -march=skylake -fheinous-gnu-extensions -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fheinous-gnu-extensions")
 
@@ -59,11 +59,14 @@ if (PMDK_LIBS)
 endif()
 
 set(P_CLHT_TEST example.cpp ${LOCAL_SOURCE})
-add_executable(p-clht_example ${P_CLHT_TEST})
+# add_executable(p-clht_example ${P_CLHT_TEST})
+add_pmdk_target(TARGET p-clht_example SOURCES ${P_CLHT_TEST} VERSION "1.8" 
+                EXTRA_LIBS ${TbbLib} ${JemallocLib} boost_system boost_thread pthread)
 
-target_link_libraries(p-clht_example ${LOCAL_LIBS})
+# target_link_libraries(p-clht_example ${LOCAL_LIBS})
 
 add_executable(p-clht_test ${P_CLHT_TEST})
+# add_pmdk_target(TARGET p-clht_test SOURCES ${P_CLHT_TEST} VERSION "1.9.2")
 
 target_link_libraries(p-clht_test ${LOCAL_LIBS})
 
